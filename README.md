@@ -1,53 +1,108 @@
-- Test with simple fuzzing and mirrors (call function with random inputs, update mirrors, compare mirrors with contract state in invariant)
-- Test with more elaborate fuzzing (same but control inputs to discard invalid ones and update mirrors with conditions, to reflect how it is expected to behave)
-- Test against OZ ERC1155 (do ERC1155-A batch operations in a loop, and compare both contracts states)
+# Superform ERC1155A fuzzing/invariants testing
 
-Take the following as an example to highlight the differences between tests.
+ERC1155A is an extension of ERC-1155 with extended approval and transmute logic, used in Superform contracts for SuperPositions. This allows token owners to execute single id or multiple id approvals in place of mass approving all of the ERC1155 ids to the spender and to transmute ERC1155 ids to and from registered ERC20's.
 
-ERC1155A_Handler_Loose
+[Read more about ERC1155 here](https://docs.superform.xyz/periphery-contracts/superpositions/erc1155a)
+
+## Idea
+
+These are the fuzzing tests I wrote for the ERC1155A contract. Basically, the rationale is pretty simple, as there are 3 kinds of tests, verifying the same invariants but embedded in different contexts.
+
+For each handler, the invariants are being checked constantly, comparing the state of the contract with the mirrors.
 
 ```solidity
-function setApprovalForAll(uint256 senderSeed, uint256 operatorSeed, bool approved) public {
-    // Grab either existing users (30% chance) or create new ones (70% chance)
-    // Whenever a new one is created, they are added to the list and minted some tokens
-    // Whenever some tokens are minted, it either grabs an existing id (30% chance) or creates a new one (70% chance)
-    (address sender, address operator) = mockERC1155A_prepare_setApprovalForAll(senderSeed, operatorSeed);
+assertEq(
+  mockERC1155A.balanceOf(users[j], tokenIds[i]),
+  handler.mirror_balanceOf(users[j], tokenIds[i]),
+  "balanceOf != mirror_balanceOf"
+);
 
-    // Make the call
-    vm.prank(sender);
-    mockERC1155A.setApprovalForAll(operator, approved);
+...
 
-    // Update the mirrors, which are constantly compared with the contract state
-    _updateApprovalForAllMirror(msg.sender, operator, approved);
+assertEq(totalSupply, sumOfBalances, "totalSupply != sumOfBalances");
+assertEq(mockERC1155A.totalSupply(tokenIds[i]), totalSupply, "totalSupply != mockERC1155A.totalSupply");
+```
+
+There are 3 different handlers, each one with a different approach. These explanations are accompanied by a very basic example for the sake of conciseness, please check the code for more relevant examples.
+
+1. [Loose Handler](./test/fuzzing/ERC1155A_Loose/ERC1155A_Handler_Loose.t.sol): Most assertions are performed against mirrors, but the functions are called with a mix a random and almost-random inputs. If any call is successful, the mirrors are updated accordingly. Using a very simple case:
+
+```solidity
+function setApprovalForOne(uint256 senderSeed, uint256 spenderSeed, uint256 idSeed, uint256 amount) public {
+  (address sender, address spender, uint256 id) =
+    mockERC1155A_prepare_setApprovalForOne(senderSeed, spenderSeed, idSeed);
+
+  vm.prank(sender);
+  mockERC1155A.setApprovalForOne(spender, id, amount);
+
+   _updateSingleAllowanceMirror(msg.sender, spender, id, amount);
 }
 ```
 
-# Overview
+2. [Strict Handler](./test/fuzzing/ERC1155A_Strict/ERC1155A_Handler_Strict.t.sol): Same as the loose handler, but after each call, the state of the contract _prior to the call_ is verified, to make sure that the right conditions were indeed met for this call to succeed. Using the same example:
 
-ERC1155A is an extension of ERC-1155 with extended approval and transmute logic, used in SuperPositions. This allows token owners to execute single id or multiple id approvals in place of mass approving all of the ERC1155 ids to the spender and to transmute ERC1155 ids to and from registered ERC20's.
+```solidity
+function setApprovalForOne(uint256 senderSeed, uint256 spenderSeed, uint256 idSeed, uint256 amount) public {
+  (address sender, address spender, uint256 id) =
+    mockERC1155A_prepare_setApprovalForOne(senderSeed, spenderSeed, idSeed);
 
-Read more about ERC1155 here: https://docs.superform.xyz/periphery-contracts/superpositions/erc1155a
+  vm.prank(sender);
+  mockERC1155A.setApprovalForOne(spender, id, amount);
 
-## Rationale
+  /// Check pre-conditions
+  assert(sender != address(0) && spender != address(0));
 
-ERC1155 `setApprovalForAll` function gives full spending permissions over all currently exisiting and future Ids. Addition a of single Id approve allows this token standard to improve composability through more better allowance control of funds. If external contract is an expected to spend only a single ERC1155 id there is no reason it should have access to all the user owned ids.
+  /// Check state changes
+  assert(mockERC1155A.allowance(sender, spender, id) == amount);
 
-ERC1155s additionally do not provide large composability with the DeFi ecosystem, so we provide the ability to transmute individual token ids via `transmuteToaERC20` to an ERC20 token. This may be reversed via `transmuteToERC1155A`.
+  /// Update mirrors
+   _updateSingleAllowanceMirror(sender, spender, id, amount);
+}
+```
 
-## Implementation Details
+3. [Discriminate Handler](./test/fuzzing/ERC1155A_Strict_Mock/ERC1155A_Handler_Discriminate.t.sol): Same as the strict handler above, but additionally, any input that is not suitable for the call is either discarded or adapted, so it can result in more meaningful state changes. Using the same example:
 
-The main change in approval logic is how ERC1155A implements the `safeTransferFrom()` function. Standard ERC1155 implementations only check if the caller in `isApprovedForAll` is an owner of token ids. We propose `setApprovalForOne()` or `setApprovalForMany()` function allowing approvals for specific id in any amount. Therefore, id owner is no longer required to mass approve all of his token ids. The side effect of it is requirement of additional validation logic inside of `safeTransferFrom()` function.
+```solidity
+function setApprovalForOne(uint256 senderSeed, uint256 spenderSeed, uint256 idSeed, uint256 amount) public {
+  (address sender, address spender, uint256 id) =
+    mockERC1155A_prepare_setApprovalForOne(senderSeed, spenderSeed, idSeed);
 
-With gas effiency in mind and preservation of expected ERC1155 behavior, ERC1155A still prioritizes `isApprovedForAll` over `setApprovalForOne()`. Only `safeTransferFrom()` function works with single allowances, `safeBatchTransferFrom()` function requires owner to grant `setApprovalForAll()` to the operator. Decision is dictated by a significant gas costs overhead when required to decrease (or reset, in case of an overflow) allowances for each id in array. Moreover, if owner has `setApprovalForAll()` set to `true`, ERC1155A contract will not modify existing single allowances during `safeTransferFrom()` and `safeBatchTransferFrom()` - assuming that owner has full trust in _operator_ for granting mass approve. Therefore, ERC1155A requires owners to manage their allowances individually and be mindful of enabling `setApprovalForAll()` for external contracts.
+  /// Discard inputs that don't meet pre-conditions
+  if (sender == address(0) || spender == address(0)) return;
 
-ERC1155A token ids may also be transmuted into ERC20's, and transmuted back from the ERC20 through `transmute` functions after `registeraERC20` has been called to create the ERC20 token representation on the chain.
+  vm.prank(sender);
+  mockERC1155A.setApprovalForOne(spender, id, amount);
 
-### Testing
+  /// Check state changes
+  assert(mockERC1155A.allowance(sender, spender, id) == amount);
 
-You need foundry/forge to run repository.
+  /// Update mirrors
+  _updateSingleAllowanceMirror(sender, spender, id, amount);
+}
+```
 
-`forge install`
+## Running tests
 
-`forge test`
+1. Clone this repo and install Foundry.
 
-Two set of tests are run. `ERC1155A` specific and general `ERC1155` tests forked from solmate's implementation of the standard. SuperForm's `ERC1155A` has exactly the same interface as standard `ERC1155` and expected behavior of functions follow EIP documentation.
+2. Update settings in [foundry.toml](./foundry.toml):
+
+```toml
+[invariant]
+runs = 32 # Number of runs per test
+depth = 128 # Number of calls per run
+fail_on_revert = false # Stop the test on revert, or not
+```
+
+3. Run the tests:
+
+```bash
+# Run Loose tests
+forge test --match-contract ERC1155A_Invariants_Loose
+
+# Run Strict tests
+forge test --match-contract ERC1155A_Invariants_Strict
+
+# Run Discriminate tests
+forge test --match-contract ERC1155A_Invariants_Discriminate
+```
