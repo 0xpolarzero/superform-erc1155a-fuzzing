@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+/// @dev These base invariants are run for each type of fuzzing campaign
+/// (Loose, Strict, Discriminate).
+
 import { Test, console } from "forge-std/Test.sol";
 import { StdInvariant } from "forge-std/StdInvariant.sol";
 

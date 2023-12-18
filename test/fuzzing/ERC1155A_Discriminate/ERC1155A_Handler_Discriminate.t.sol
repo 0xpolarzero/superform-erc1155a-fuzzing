@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import { Test, console } from "forge-std/Test.sol";
-
-import { Handler_Base } from "test/fuzzing/Handler_Base.sol";
-
-import { MockERC1155A } from "test/mocks/MockERC1155A.sol";
-import { IaERC20 } from "src/interfaces/IaERC20.sol";
-
 /// @dev This is basically the same as the `ERC1155A_Handler_Strict` handler, but with more fine-grained control
 /// over the inputs, to produce more successfull calls, and test the behavior in both a more in-depth and realistic way.
 /// @dev Basically, the flaw is:
@@ -18,6 +11,13 @@ import { IaERC20 } from "src/interfaces/IaERC20.sol";
 /// - update the mirrors
 /// @dev Even more basically, it's the strict handler, but instead of verifying that pre-conditions were met, we
 /// actually discard inputs that don't meet them.
+
+import { Test } from "forge-std/Test.sol";
+
+import { Handler_Base } from "test/fuzzing/Handler_Base.sol";
+
+import { MockERC1155A } from "test/mocks/MockERC1155A.sol";
+import { IaERC20 } from "src/interfaces/IaERC20.sol";
 
 contract ERC1155A_Handler_Discriminate is Handler_Base {
     constructor(MockERC1155A _mockERC1155A) Handler_Base(_mockERC1155A) { }

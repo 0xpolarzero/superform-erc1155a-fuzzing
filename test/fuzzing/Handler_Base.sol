@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+/// @dev Base handler to be implemented by specific handlers
+/// @dev This base is used to:
+/// - keep track of created (and funded) users, tokens ids and mirrors
+/// - prepare relevant arguments to be passed to functions called inside MockERC1155A
+/// - create/select random users and token ids
+/// - update mirrors accurately
+
 import { Test } from "forge-std/Test.sol";
 
 import { MockERC1155A } from "test/mocks/MockERC1155A.sol";
-
-/// @dev Base handler to be implemented by specific handlers
 
 abstract contract Handler_Base is Test {
     MockERC1155A mockERC1155A;
@@ -52,6 +57,7 @@ abstract contract Handler_Base is Test {
 
     /* ----------------------------- ERC1155-A LOGIC ---------------------------- */
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:safeTransferFrom`
     function mockERC1155A_prepare_safeTransferFrom(
         uint256 senderSeed,
         uint256 fromSeed,
@@ -69,6 +75,7 @@ abstract contract Handler_Base is Test {
 
     /* ------------------------------ ERC1155 LOGIC ----------------------------- */
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:setApprovalForAll`
     function mockERC1155A_prepare_setApprovalForAll(
         uint256 senderSeed,
         uint256 operatorSeed
@@ -80,6 +87,7 @@ abstract contract Handler_Base is Test {
         operator = _selectRandomOrCreateUser(operatorSeed);
     }
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:safeBatchTransferFrom`
     function mockERC1155A_prepare_safeBatchTransferFrom(
         uint256 senderSeed,
         uint256 fromSeed,
@@ -97,6 +105,7 @@ abstract contract Handler_Base is Test {
 
     /* ----------------------------- SINGLE APPROVE ----------------------------- */
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:setApprovalForOne`
     function mockERC1155A_prepare_setApprovalForOne(
         uint256 senderSeed,
         uint256 spenderSeed,
@@ -110,6 +119,7 @@ abstract contract Handler_Base is Test {
         id = _selectRandomOrInexistentTokenId(idSeed);
     }
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:increaseAllowance`
     function mockERC1155A_prepare_increaseAllowance(
         uint256 senderSeed,
         uint256 spenderSeed,
@@ -123,6 +133,7 @@ abstract contract Handler_Base is Test {
         id = _selectRandomOrInexistentTokenId(idSeed);
     }
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:decreaseAllowance`
     function mockERC1155A_prepare_decreaseAllowance(
         uint256 senderSeed,
         uint256 spenderSeed,
@@ -138,6 +149,7 @@ abstract contract Handler_Base is Test {
 
     /* ------------------------------ MULTI APPROVE ----------------------------- */
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:setApprovalForMany`
     function mockERC1155A_prepare_setApprovalForMany(
         uint256 senderSeed,
         uint256 spenderSeed,
@@ -151,6 +163,7 @@ abstract contract Handler_Base is Test {
         ids = _selectRandomOrInexistentTokenIdMulti(idSeeds);
     }
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:increaseAllowanceForMany`
     function mockERC1155A_prepare_increaseAllowanceForMany(
         uint256 senderSeed,
         uint256 spenderSeed,
@@ -164,6 +177,7 @@ abstract contract Handler_Base is Test {
         ids = _selectRandomOrInexistentTokenIdMulti(idSeeds);
     }
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:decreaseAllowanceForMany`
     function mockERC1155A_prepare_decreaseAllowanceForMany(
         uint256 senderSeed,
         uint256 spenderSeed,
@@ -179,10 +193,12 @@ abstract contract Handler_Base is Test {
 
     /* --------------------------- AERC20 & TRANSMUTE --------------------------- */
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:registerAERC20`
     function mockERC1155A_prepare_registerAERC20(uint256 idSeed) internal returns (uint256 id) {
         id = _selectRandomOrInexistentTokenId(idSeed);
     }
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:transmuteBatchToERC20`
     function mockERC1155A_prepare_transmuteBatchToERC20(
         uint256 senderSeed,
         uint256 ownerSeed,
@@ -196,6 +212,7 @@ abstract contract Handler_Base is Test {
         ids = _selectRandomOrInexistentTokenIdMulti(idSeeds);
     }
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:transmuteBatchToERC1155A`
     function mockERC1155A_prepare_transmuteBatchToERC1155A(
         uint256 senderSeed,
         uint256 ownerSeed,
@@ -209,6 +226,7 @@ abstract contract Handler_Base is Test {
         ids = _selectRandomOrInexistentTokenIdMulti(idSeeds);
     }
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:transmuteToERC20`
     function mockERC1155A_prepare_transmuteToERC20(
         uint256 senderSeed,
         uint256 ownerSeed,
@@ -222,6 +240,7 @@ abstract contract Handler_Base is Test {
         id = _selectRandomOrInexistentTokenId(idSeed);
     }
 
+    /// @dev Prepare arguments for a call to `MockERC1155A:transmuteToERC1155A`
     function mockERC1155A_prepare_transmuteToERC1155A(
         uint256 senderSeed,
         uint256 ownerSeed,
@@ -239,10 +258,12 @@ abstract contract Handler_Base is Test {
     /*                                  UTILITIES                                 */
     /* -------------------------------------------------------------------------- */
 
+    /// @dev Return a boolean indicating whether `a` implies `b`
     function implies(bool a, bool b) internal pure returns (bool) {
         return !a || b;
     }
 
+    /// @dev Assert that `a` implies `b`
     function assert_implies(bool a, bool b) internal pure {
         assert(implies(a, b));
     }
@@ -251,6 +272,9 @@ abstract contract Handler_Base is Test {
     /*                                   HELPERS                                  */
     /* -------------------------------------------------------------------------- */
 
+    /// @dev A. Return an existing user; meaning that they have already interacted with the contract (30%)
+    /// @dev B. Create a new user, mint them some new or already minted token, add them to the array and update balances
+    /// (70%)
     function _selectRandomOrCreateUser(uint256 seed) internal virtual returns (address user) {
         uint256 chanceToSelectExistingUser = 30; // 30%
 
@@ -279,6 +303,8 @@ abstract contract Handler_Base is Test {
         }
     }
 
+    /// @dev A: Return a token id that was already minted (~30%)
+    /// @dev B: Create a new token id, and add it to the array (~70%)
     function _selectRandomOrInexistentTokenId(uint256 seed) internal virtual returns (uint256 tokenId) {
         uint256 chanceToSelectExistingTokenId = 30; // 30%
 
@@ -298,6 +324,7 @@ abstract contract Handler_Base is Test {
         }
     }
 
+    /// @dev Perform the above operation for multiple seeds
     function _selectRandomOrInexistentTokenIdMulti(uint256[] memory seeds)
         internal
         virtual
@@ -312,6 +339,7 @@ abstract contract Handler_Base is Test {
 
     /* -------------------------------- BALANCES -------------------------------- */
 
+    /// @dev Update balances for a user, for a single token id
     function _updateSingleBalancesMirror(
         address from,
         address to,
@@ -334,6 +362,7 @@ abstract contract Handler_Base is Test {
         }
     }
 
+    /// @dev Update balances for a user, for multiple token ids and amounts
     function _updateMultiBalancesMirror(
         address from,
         address to,
@@ -355,6 +384,7 @@ abstract contract Handler_Base is Test {
 
     /* ------------------------------- ALLOWANCES ------------------------------- */
 
+    /// @dev Update allowances for a user, for a single token id
     function _updateSingleAllowanceMirror(
         address owner,
         address spender,
@@ -367,6 +397,7 @@ abstract contract Handler_Base is Test {
         mirror_allowances[owner][spender][id] = amount;
     }
 
+    /// @dev Set allowances for a user, for multiple token ids and amounts
     function _setMultiAllowancesMirror(
         address owner,
         address spender,
@@ -381,6 +412,7 @@ abstract contract Handler_Base is Test {
         }
     }
 
+    /// @dev Increase allowances for a user, for multiple token ids and amounts
     function _increaseMultiAllowancesMirror(
         address owner,
         address spender,
@@ -395,6 +427,7 @@ abstract contract Handler_Base is Test {
         }
     }
 
+    /// @dev Decrease allowances for a user, for multiple token ids and amounts
     function _decreaseMultiAllowancesMirror(
         address owner,
         address spender,
@@ -409,23 +442,27 @@ abstract contract Handler_Base is Test {
         }
     }
 
+    /// @dev Set approval for all for a user/spender pair
     function _updateApprovalForAllMirror(address owner, address spender, bool approved) internal virtual {
         mirror_isApprovedForAll[owner][spender] = approved;
     }
 
     /* ------------------------------ TRANSMUTATION ----------------------------- */
 
+    /// @dev Set aERC20 token for a given id
     function _setAERC20TokenIdMirror(uint256 id, address aToken) internal virtual {
         mirror_aERC20Tokens[id] = aToken;
         _aERC20TokenIds.push(id);
     }
 
+    /// @dev Update balances and total supply after an ERC1155-A token was transmuted to ERC20
     function _updateSingleTransmutedToERC20Mirror(address owner, uint256 id, uint256 amount) internal virtual {
         mirror_balanceOf[owner][id] -= amount;
         mirror_totalSupply[id] -= amount;
         mirror_aERC20_balanceOf[owner][id] += amount;
     }
 
+    /// @dev Update balances and total supply after multiple ERC1155-A tokens were transmuted to ERC20s
     function _updateMultiTransmutedToERC20Mirror(
         address owner,
         uint256[] memory ids,
@@ -441,12 +478,14 @@ abstract contract Handler_Base is Test {
         }
     }
 
+    /// @dev Update balances and total supply after an ERC20 token was transmuted back to ERC1155-A
     function _updateSingleTransmutedToERC1155AMirror(address owner, uint256 id, uint256 amount) internal virtual {
         mirror_balanceOf[owner][id] += amount;
         mirror_totalSupply[id] += amount;
         mirror_aERC20_balanceOf[owner][id] -= amount;
     }
 
+    /// @dev Update balances and total supply after multiple ERC20 tokens were transmuted back to ERC1155-As
     function _updateMultiTransmutedToERC1155AMirror(
         address owner,
         uint256[] memory ids,
@@ -466,14 +505,17 @@ abstract contract Handler_Base is Test {
     /*                                   GETTERS                                  */
     /* -------------------------------------------------------------------------- */
 
+    /// @dev Return the list of users that interacted with the contract
     function users() external view returns (address[] memory) {
         return _users;
     }
 
+    /// @dev Return the list of token ids that were minted at least once
     function tokenIds() external view returns (uint256[] memory) {
         return _tokenIds;
     }
 
+    /// @dev Return the list of aERC20 token ids that were registered
     function aERC20TokenIds() external view returns (uint256[] memory) {
         return _aERC20TokenIds;
     }

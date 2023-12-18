@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import { Test, console } from "forge-std/Test.sol";
+/// @dev Here we perform most assertions with mirrors, for more fine-grained control;
+/// then we verify the correctness of the mirrors as an invariant.
+/// @dev Basically, the flaw is:
+/// - call the contract with some semi-random input (the addresses and ids are seeded)
+/// - update the mirrors as they should be updated, if the call was successful.
+/// @dev See `ERC1155A_Handler_Strict` for a... stricter version of updates and assertions,
+/// which more straightforwardly addresses the assumptions.
+
+import { Test } from "forge-std/Test.sol";
 
 import { Handler_Base } from "test/fuzzing/Handler_Base.sol";
 
 import { MockERC1155A } from "test/mocks/MockERC1155A.sol";
-
-/// @dev Here we perform most assertions with mirrors, for more fine-grained control;
-/// then we verify the correctness of the mirrors as an invariant.
-/// @dev Basically, the flaw is:
-/// - call the contract with some random input;
-/// - update the mirrors as they should be updated, if the call was successful.
-/// @dev See `ERC1155A_Handler_Strict` for a... stricter version of updates and assertions,
-/// which more straightforwardly addresses the assumptions.
 
 contract ERC1155A_Handler_Loose is Handler_Base {
     constructor(MockERC1155A _mockERC1155A) Handler_Base(_mockERC1155A) { }

@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import { Test, console } from "forge-std/Test.sol";
-
-import { Handler_Base } from "test/fuzzing/Handler_Base.sol";
-
-import { MockERC1155A } from "test/mocks/MockERC1155A.sol";
-import { IaERC20 } from "src/interfaces/IaERC20.sol";
-
 /// @dev Here we compare the flow of the contract to mirrors, with a more assertive approach than in the loose handler;
 /// then we compare these mirrors to the state of the contract, both in invariants and after each call.
 /// @dev Basically, the flaw is:
@@ -20,6 +13,13 @@ import { IaERC20 } from "src/interfaces/IaERC20.sol";
 /// @dev This is comparable to the 'imply'/`=>` strategy, where whenever the tracker ERC1155 contract is updated, it
 /// implies that the right conditions were met. Testing the contract's state both after each call AND in invariants
 /// might be a bit overkill, but anyway.
+
+import { Test } from "forge-std/Test.sol";
+
+import { Handler_Base } from "test/fuzzing/Handler_Base.sol";
+
+import { MockERC1155A } from "test/mocks/MockERC1155A.sol";
+import { IaERC20 } from "src/interfaces/IaERC20.sol";
 
 contract ERC1155A_Handler_Strict is Handler_Base {
     constructor(MockERC1155A _mockERC1155A) Handler_Base(_mockERC1155A) { }
